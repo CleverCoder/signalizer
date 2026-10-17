@@ -192,6 +192,9 @@
 			cpl::ChannelMatrix<AudioStream::DataType> matrix;
 			std::atomic_bool structuralChange;
 			std::atomic_bool enabled;
+			/// Set once by close(). The graph (including the self entry) is gone after this,
+			/// so late stream callbacks and queued commands must be ignored.
+			std::atomic_bool closed { false };
 			cpl::weak_atomic<std::size_t> maximumLatency;
 			cpl::relaxed_atomic<std::size_t> currentLatency;
 			cpl::relaxed_atomic<bool> isSynchronized;

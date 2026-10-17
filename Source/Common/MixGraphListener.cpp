@@ -74,6 +74,7 @@ namespace Signalizer
 
 		// there might be further processing, but from now on we're in a dead state.
 		enabled = false;
+		closed = true;
 
 		for (auto& g : graph)
 		{
@@ -85,6 +86,13 @@ namespace Signalizer
 			sh->removeListener(shared_from_this());
 
 		graph.clear();
+		// self pointed into the graph.
+		self = nullptr;
+
+		// commands queued but not yet applied would otherwise be processed against the empty graph
+		// by a late callback, and they hold references to other streams.
+		std::lock_guard<std::mutex> cdlock(connectDisconnectMutex);
+		connectionCommands.clear();
 	}
 
 	void MixGraphListener::assignSelf()
@@ -173,6 +181,10 @@ namespace Signalizer
 	{
 		// mix graph listener can't be destroyed while this is happening.
 		std::lock_guard<std::mutex> lock(connectDisconnectMutex);
+
+		if (closed)
+			return;
+
 		auto portName = name + "[" + std::to_string(pair.Source) + "]";
 
 		connectionCommands.emplace_back(ConnectionCommand{ other, std::move(portName), pair, true});
@@ -182,6 +194,10 @@ namespace Signalizer
 	{
 		// mix graph listener can't be destroyed while this is happening.
 		std::lock_guard<std::mutex> lock(connectDisconnectMutex);
+
+		if (closed)
+			return;
+
 		// it's fine source itself is already dead, we only operate on local copies.
 		connectionCommands.emplace_back(ConnectionCommand{ other, {}, pair, false });
 	}
@@ -367,6 +383,10 @@ namespace Signalizer
 		if (handle == presentationOutput)
 			return;
 
+		// callbacks can still arrive briefly after close() deregistered us.
+		if (closed)
+			return;
+
 		const auto localMaxLatency = maximumLatency.load();
 		const auto maxBufferSize = localMaxLatency * 8;
 		const auto globalPosition = ctx.getPlayhead().getPositionInSamples();
@@ -530,17 +550,31 @@ namespace Signalizer
 		// so we can alter mapping tables. can be done without.
 		cpl::unique_lock<cpl::shared_mutex> lock(dataMutex);
 
+		// close() may have run while we waited for the lock; the graph and self are gone.
+		if (closed)
+			return;
+
 		for (auto& command : localNewToplogy)
 		{
 			const auto key = command.stream.get();
+
+			if (!NONTERMINAL_ASSUMPTION(key != nullptr))
+				continue;
+
 			auto it = graph.find(key->getHandle());
 
 			if (it == graph.end())
 			{
-				CPL_RUNTIME_ASSERTION(command.isConnection);
-				CPL_RUNTIME_ASSERTION(command.stream.get() != nullptr);
-				// TODO: This assertion has fired in the wild. See added NONTERMINAL_ASSUMPTION below.
-				CPL_RUNTIME_ASSERTION(command.stream.get() != self->source.lock().get());
+				// Disconnecting something we don't know, nothing to do.
+				if (!NONTERMINAL_ASSUMPTION(command.isConnection))
+					continue;
+
+				// The self entry is created in assignSelf() and never removed while open, so
+				// reaching this means the graph is inconsistent. This used to be a fatal assertion
+				// that fired in the wild (see Source/Notes/Bugs.txt); skip the command instead.
+				if (!NONTERMINAL_ASSUMPTION(key != realtime.get()))
+					continue;
+
 				it = emplace(command.stream);
 			}
 

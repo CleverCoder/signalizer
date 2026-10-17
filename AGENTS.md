@@ -195,14 +195,13 @@ New DSP/rendering kernels follow the existing pattern: a `struct XDispatcher { t
 
 Start here when fixing bugs (see also `Source/Notes/Bugs.txt`):
 
-1. `HostGraph::getNumChannels()` returns a hard-coded 2 → mono instances advertise 2 channels, mix graph connects out-of-range channel indices (Bugs.txt #2). Only a `NONTERMINAL_ASSUMPTION` in `MixGraphListener::onStreamAudio` skips the bad index.
-2. `MixGraphListener::updateTopologyCommands`: `CPL_RUNTIME_ASSERTION(command.stream.get() != self->source.lock().get())` has fired in the wild (self-connect, e.g. alias serialized then reloaded, Bugs.txt #1). Fatal assertion on an async thread → modal box → possible deadlock while the editor tears down the mix graph (Bugs.txt #3).
-3. `CrashIfUserDoesntDebug` (cpl `Exceptions.cpp`) shows a modal box from any thread.
-4. 2-channel hard cap in `PluginProcessor` (`supportedChannels`); surround input is truncated, and a changed input count silently drops audio until `prepareToPlay`.
-5. Spectrum: `axisPoints == 0` (zero-size/minimized view) trips an assertion in `TransformConstant::remapFrequencies`; `resume()` writes `windowSize` off-thread; `setStorage`/`audioMemoryResize` vs. the separate audio-buffer lock; `StateOptions` plain bools shared across threads.
-6. `MixGraphListener`: `containedSamples = 0` on connect stalls every channel from that source.
-7. `CommonSignalizer.h`: lifetime TODO in `AudioHistoryTransformatter` ("can leave scope before us").
-8. `GraphicsWindow` mouse handlers in `CommonSignalizer.h` have `beginChangeGesture`/`endChangeGesture` TODOs — in-view mouse interaction (zoom/drag) is not wrapped as host change gestures.
+1. Mono / multichannel support. `HostGraph::getNumChannels()` returns a hard-coded 2 and `PluginProcessor` caps at `supportedChannels = 2`, padding missing channels with a dummy buffer (since 0.4.2, which fixed the mono crash in Bugs.txt #2). This is consistent today; the proper fix is dynamic channel counts through the mix graph — feature work, not a quick fix. Surround input is truncated, and a changed input count silently drops audio until `prepareToPlay`.
+2. *(Fixed on this fork)* `MixGraphListener::close()` cleared the graph (including the `self` entry) but left `self` dangling and kept queued connect/disconnect commands. A late self callback then ran `updateTopologyCommands()` against the empty graph, tripping fatal `CPL_RUNTIME_ASSERTION`s and dereferencing freed memory — a plausible cause of the assertion that "fired in the wild" and of the teardown deadlock in Bugs.txt #3 (alias self-connect, Bugs.txt #1, is not yet ruled out). Now guarded by a `closed` flag; the assertions are non-terminal.
+3. `CrashIfUserDoesntDebug` (cpl `Exceptions.cpp`) shows a modal box from any thread — any remaining fatal assertion off the message thread can deadlock teardown.
+4. Spectrum: `axisPoints == 0` (zero-size/minimized view) trips an assertion in `TransformConstant::remapFrequencies`; `resume()` writes `windowSize` off-thread; `setStorage`/`audioMemoryResize` vs. the separate audio-buffer lock; `StateOptions` plain bools shared across threads.
+5. `MixGraphListener`: `containedSamples = 0` on connect stalls every channel from that source.
+6. `CommonSignalizer.h`: lifetime TODO in `AudioHistoryTransformatter` ("can leave scope before us").
+7. `GraphicsWindow` mouse handlers in `CommonSignalizer.h` have `beginChangeGesture`/`endChangeGesture` TODOs — in-view mouse interaction (zoom/drag) is not wrapped as host change gestures.
 
 ## Testing
 
