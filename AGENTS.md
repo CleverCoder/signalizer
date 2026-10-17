@@ -32,14 +32,32 @@ VST2 formats need the SDK at `../SDKs/vstsdk2.4` (`release -s` skips VST2).
 
 ### Projucer / generated files
 
-`Signalizer.jucer` is the source of truth for project settings, file lists, exporters and JUCE options. `Builds/` and `JuceLibraryCode/` are regenerated from it — never hand-edit them except as a deliberate stopgap mirrored in the `.jucer`. Use the Projucer built from the fork (`External/juce/extras/Projucer/Builds/...`) so exporter output matches.
+`Signalizer.jucer` is the source of truth for project settings, file lists, exporters and JUCE options. `Builds/` and `JuceLibraryCode/` are regenerated from it — never hand-edit them except as a deliberate stopgap mirrored in the `.jucer`. Use the Projucer built from the fork so exporter output matches:
 
-### Windows build gotchas
+```
+# once: build Projucer (VS2022 developer environment)
+msbuild External/juce/extras/Projucer/Builds/VisualStudio2022/Projucer.sln /p:Configuration=Release /p:Platform=x64
+# after editing Signalizer.jucer
+External/juce/extras/Projucer/Builds/VisualStudio2022/x64/Release/App/Projucer.exe --resave Signalizer.jucer
+```
 
-- `Make/build_win.py` finds MSVC via `vswhere -latest`. The projects use the **v143 (VS2022) toolset**. If a newer Visual Studio (e.g. VS 2026 / v18) is also installed, `-latest` picks it, and the build fails with MSB8020 unless that install also has the "MSVC v143" build tools component. Fix either by installing that component or by pinning vswhere to `-version [17.0,18.0)` in `find_vcvarsall()`.
-- The VS2022 exporter has the upstream author's machine paths baked in: `enablePluginBinaryCopyStep="1"`, `vstBinaryLocation_x64="C:\Audio\VSTPlugins\Signalizer"`, and a post-build `cp -r ../../Make/Skeleton/* C:\Audio\VSTPlugins\Signalizer` (needs Git's `cp` on PATH, and the target directory to exist). The VST3 copy step defaults to `C:\Program Files\Common Files\VST3` (needs admin). Adjust these in the `.jucer` for your machine.
+**A raw resave clobbers hand-maintained generated files.** After resaving, revert anything you didn't intend to change — in particular:
+
+- `JuceLibraryCode/JucePluginDefines.h` — `JucePlugin_Version*` are hand-pointed at `SIGNALIZER_VERSION`, `SIGNALIZER_VST_VERSION_HEX`, `SIGNALIZER_VERSION_STRING` (from `Source/version.h`); Projucer writes literals.
+- `Builds/MacOSX/Info-*.plist`, `Builds/VisualStudio2022/resources.rc` — rewritten by the release scripts; Projucer reformats them.
+- Line endings: some files are LF, some CRLF; Projucer writes CRLF. Match the original (`git diff --ignore-cr-at-eol` shows the real change).
+
+Review `git diff` after every resave; only the exporter output you meant to change should remain.
+
+### Windows build notes
+
+- `Make/build_win.py` pins `vswhere` to VS2022 (`-version [17.0,18.0)`) because the projects use the **v143 toolset**; a newer side-by-side Visual Studio (e.g. VS 2026) without the v143 component would otherwise be picked and fail with MSB8020.
+- Plugin binary copy steps are disabled (`enablePluginBinaryCopyStep="0"`) — JUCE's VST3 copy step targets `C:\Program Files\Common Files\VST3` and fails without admin. The post-build step copies `Make/Skeleton/*` into each target's `$(OutDir)` (uses Git's `cp`, which must be on PATH).
+- The Skeleton is **not** copied inside the VST3 bundle (`Signalizer.vst3/Contents/x86_64-win/`) by dev builds; the release script does that. For DAW testing of a dev VST3, copy it in manually.
 - On Windows, `build.py release` builds the whole `Signalizer.sln`, including the VST2 project — `-s/--skipvst2` is only honoured on macOS. Without the VST2 SDK, release builds fail on Windows until VST2 is removed from the `.jucer` or the script builds per-project.
-- `build.py dev` builds only `Signalizer_SharedCode` + `Signalizer_StandalonePlugin`; output is `Builds/VisualStudio2022/x64/<Debug|Release>/Standalone Plugin/Signalizer.exe`. The Skeleton (presets, icons, licenses) must sit next to the binary — the post-build step copies it.
+- `build.py dev` builds only `Signalizer_SharedCode` + `Signalizer_StandalonePlugin`; output is `Builds/VisualStudio2022/x64/<Debug|Release>/Standalone Plugin/Signalizer.exe`.
+- To build the VST3 alone, build the projects directly (solution-level `/t:` targets don't work here): `Signalizer_VST3ManifestHelper.vcxproj` (`/p:Platform=Win32`), then `Signalizer_SharedCode.vcxproj` and `Signalizer_VST3.vcxproj` (`/p:Platform=x64`), each with `/p:SolutionDir=<abs path to Builds\VisualStudio2022\>`.
+- Plugin identity (`pluginCode="Sign"`, `pluginManufacturerCode="LbJt"`, company "Lightbridge") is still upstream's, so a fork's VST3 has the same class ID as official Signalizer. Hosts treat them as the same plugin; changing the codes makes it a distinct plugin but old sessions won't find it.
 
 ### Other build notes
 

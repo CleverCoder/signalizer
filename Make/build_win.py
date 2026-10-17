@@ -20,8 +20,10 @@ _VS_EDITIONS = ('Community', 'Professional', 'Enterprise', 'BuildTools')
 def find_vcvarsall():
 	"""Locate vcvarsall.bat for VS2022, regardless of edition."""
 	if os.path.exists(_VSWHERE):
+		# The projects use the VS2022 (v143) toolset. Restrict the search to 17.x, otherwise
+		# -latest picks a newer side-by-side install (e.g. VS 2026) that may lack v143 (MSB8020).
 		result = subprocess.run(
-			[_VSWHERE, '-latest', '-products', '*',
+			[_VSWHERE, '-latest', '-version', '[17.0,18.0)', '-products', '*',
 			 '-requires', 'Microsoft.VisualStudio.Component.VC.Tools.x86.x64',
 			 '-property', 'installationPath'],
 			capture_output=True, encoding='oem'

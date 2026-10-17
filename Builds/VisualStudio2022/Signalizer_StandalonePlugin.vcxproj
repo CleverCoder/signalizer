@@ -105,8 +105,7 @@
       <AdditionalDependencies>Signalizer.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Lib>
     <PostBuildEvent>
-      <Command>cp -r ../../Make/Skeleton/* C:\Audio\VSTPlugins\Signalizer
-cp -r ../../Make/Skeleton/* &quot;x64\Debug\Standalone Plugin&quot;
+      <Command>cp -r ../../Make/Skeleton/* &quot;$(OutDir).&quot;
 </Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
@@ -160,8 +159,7 @@ cp -r ../../Make/Skeleton/* &quot;x64\Debug\Standalone Plugin&quot;
       <AdditionalDependencies>Signalizer.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Lib>
     <PostBuildEvent>
-      <Command>cp -r ../../Make/Skeleton/* C:\Audio\VSTPlugins\Signalizer
-cp -r ../../Make/Skeleton/* &quot;x64\Release\Standalone Plugin&quot;
+      <Command>cp -r ../../Make/Skeleton/* &quot;$(OutDir).&quot;
 </Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>

@@ -638,13 +638,11 @@
     <VS2022 targetFolder="Builds/VisualStudio2022" vstLegacyFolder="../SDKs/vstsdk2.4"
             extraDefs="JUCE_GUI_BASICS_INCLUDE_SCOPED_THREAD_DPI_AWARENESS_SETTER=1&#10;CPL_TRACEGUARD_ENTRYPOINTS&#10;CPL_PROFILING=1">
       <CONFIGURATIONS>
-        <CONFIGURATION isDebug="1" name="Debug" fastMath="1" enablePluginBinaryCopyStep="1"
-                       vstBinaryLocation_x64="C:\Audio\VSTPlugins\Signalizer" winWarningLevel="3"
-                       postbuildCommand="cp -r ../../Make/Skeleton/* C:\Audio\VSTPlugins\Signalizer&#10;cp -r ../../Make/Skeleton/* &quot;x64\Debug\Standalone Plugin&quot;"
+        <CONFIGURATION isDebug="1" name="Debug" fastMath="1" enablePluginBinaryCopyStep="0"
+                       winWarningLevel="3" postbuildCommand="cp -r ../../Make/Skeleton/* &quot;$(OutDir).&quot;"
                        winArchitecture="x64"/>
         <CONFIGURATION isDebug="0" name="Release" fastMath="1" useRuntimeLibDLL="0"
-                       enablePluginBinaryCopyStep="1" vstBinaryLocation_x64="C:\Audio\VSTPlugins\Signalizer"
-                       winWarningLevel="3" postbuildCommand="cp -r ../../Make/Skeleton/* C:\Audio\VSTPlugins\Signalizer&#10;cp -r ../../Make/Skeleton/* &quot;x64\Release\Standalone Plugin&quot;"
+                       enablePluginBinaryCopyStep="0" winWarningLevel="3" postbuildCommand="cp -r ../../Make/Skeleton/* &quot;$(OutDir).&quot;"
                        alwaysGenerateDebugSymbols="1" winArchitecture="x64"/>
       </CONFIGURATIONS>
       <MODULEPATHS>
